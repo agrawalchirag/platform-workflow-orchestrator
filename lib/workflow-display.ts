@@ -96,3 +96,17 @@ export function formatTimestamp(value: string | null): string {
     minute: "2-digit",
   }).format(new Date(value));
 }
+
+export function formatTimelineTimestamp(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value));
+}

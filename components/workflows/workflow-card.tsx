@@ -11,7 +11,7 @@ import {
 } from "@/lib/workflow-display";
 import { EnvironmentBadge, StatusBadge } from "@/components/workflows/status-badge";
 import { ProgressBar } from "@/components/workflows/progress-bar";
-import { PipelineSteps } from "@/components/workflows/pipeline-steps";
+import { WorkflowDeploymentTimeline } from "@/components/workflows/workflow-deployment-timeline";
 
 interface WorkflowCardProps {
   workflow: WorkflowResponse;
@@ -65,7 +65,7 @@ export function WorkflowCard({ workflow, onRetry }: WorkflowCardProps) {
 
       <div className="mt-5 space-y-5">
         <ProgressBar progress={workflow.progress} />
-        <PipelineSteps workflow={workflow} />
+        <WorkflowDeploymentTimeline workflow={workflow} />
       </div>
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
