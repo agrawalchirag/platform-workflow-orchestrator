@@ -1,4 +1,5 @@
-// Prisma schema — models will be defined as workflow persistence is implemented.
+// Deployment workflow domain model.
+// Logs are stored as a JSON array: { timestamp, level, message, step? }[]
 
 generator client {
   provider = "prisma-client-js"
@@ -7,4 +8,54 @@ generator client {
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+/// Target runtime environment for the deployment.
+enum DeploymentEnvironment {
+  DEVELOPMENT
+  STAGING
+  PRODUCTION
+}
+
+/// Full lifecycle state of a deployment workflow.
+enum WorkflowStatus {
+  PENDING
+  VALIDATING
+  BUILDING
+  TESTING
+  DEPLOYING
+  HEALTH_CHECK
+  COMPLETED
+  FAILED
+}
+
+/// Active pipeline step. Nullable while pending; set to the failing step on error.
+enum WorkflowStep {
+  VALIDATING
+  BUILDING
+  TESTING
+  DEPLOYING
+  HEALTH_CHECK
+}
+
+model DeploymentWorkflow {
+  id              String                @id @default(cuid())
+  applicationName String
+  environment     DeploymentEnvironment
+  version         String
+  status          WorkflowStatus        @default(PENDING)
+  currentStep     WorkflowStep?
+  progress        Int                   @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+  logs            Json                  @default("[]")
+  errorMessage    String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  @@index([applicationName])
+  @@index([environment])
+  @@index([status])
+  @@index([createdAt])
+  @@map("deployment_workflows")
 }

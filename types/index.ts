@@ -1,2 +1,13 @@
-export type { WorkflowStatus } from "./workflow";
-export { WORKFLOW_STATUSES } from "./workflow";
+export type {
+  DeploymentEnvironment,
+  WorkflowLogEntry,
+  WorkflowLogLevel,
+  WorkflowStatus,
+  WorkflowStep,
+} from "./workflow";
+
+export {
+  DEPLOYMENT_ENVIRONMENTS,
+  WORKFLOW_STATUSES,
+  WORKFLOW_STEPS,
+} from "./workflow";
