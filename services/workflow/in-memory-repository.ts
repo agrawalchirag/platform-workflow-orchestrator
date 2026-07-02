@@ -1,8 +1,8 @@
 import type { DeploymentWorkflow } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-import { appendWorkflowLogs } from "@/lib/workflow-logs";
+import { appendWorkflowLogs, createLogEntry } from "@/lib/workflow-logs";
 import type { StartWorkflowInput, WorkflowTransitionUpdate } from "./types";
-import type { WorkflowRepository } from "./repository";
+import type { ListWorkflowsOptions, WorkflowRepository } from "./repository";
 
 export class InMemoryWorkflowRepository implements WorkflowRepository {
   private readonly workflows = new Map<string, DeploymentWorkflow>();
@@ -31,6 +31,45 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
 
   findById(id: string): Promise<DeploymentWorkflow | null> {
     return Promise.resolve(this.workflows.get(id) ?? null);
+  }
+
+  list(options: ListWorkflowsOptions = {}): Promise<DeploymentWorkflow[]> {
+    const workflows = [...this.workflows.values()].sort(
+      (left, right) => right.createdAt.getTime() - left.createdAt.getTime(),
+    );
+
+    if (!options.status) {
+      return Promise.resolve(workflows);
+    }
+
+    return Promise.resolve(
+      workflows.filter((workflow) => workflow.status === options.status),
+    );
+  }
+
+  resetForRetry(workflowId: string): Promise<DeploymentWorkflow> {
+    const workflow = this.workflows.get(workflowId);
+
+    if (!workflow) {
+      return Promise.reject(new Error(`Workflow not found: ${workflowId}`));
+    }
+
+    const reset: DeploymentWorkflow = {
+      ...workflow,
+      status: "PENDING",
+      currentStep: null,
+      progress: 0,
+      startedAt: null,
+      completedAt: null,
+      errorMessage: null,
+      logs: appendWorkflowLogs(workflow.logs, [
+        createLogEntry("Workflow retry requested", "info"),
+      ]),
+      updatedAt: new Date(),
+    };
+
+    this.workflows.set(workflowId, reset);
+    return Promise.resolve(reset);
   }
 
   transition(

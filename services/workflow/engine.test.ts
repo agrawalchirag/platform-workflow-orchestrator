@@ -116,16 +116,56 @@ describe("WorkflowEngine", () => {
 
     await engine.execute(workflow.id);
 
-    await expect(engine.execute(workflow.id)).rejects.toThrow(
-      "cannot be executed from status COMPLETED",
-    );
+    await expect(engine.execute(workflow.id)).rejects.toMatchObject({
+      name: "WorkflowExecutionError",
+    });
   });
 
   it("rejects execution when workflow does not exist", async () => {
     const { engine } = createTestEngine();
 
-    await expect(engine.execute("missing-id")).rejects.toThrow(
-      "Workflow not found: missing-id",
-    );
+    await expect(engine.execute("missing-id")).rejects.toMatchObject({
+      name: "WorkflowNotFoundError",
+    });
+  });
+
+  it("resets and allows retry for failed workflows", async () => {
+    let attempt = 0;
+    const { engine } = createTestEngine({
+      random: () => {
+        attempt += 1;
+        return attempt === 1 ? 0 : 1;
+      },
+    });
+
+    const failed = await engine.run({
+      applicationName: "payment-api",
+      environment: "STAGING",
+      version: "1.0.0",
+    });
+
+    expect(failed.status).toBe("FAILED");
+
+    const reset = await engine.retry(failed.id);
+
+    expect(reset.status).toBe("PENDING");
+    expect(reset.progress).toBe(0);
+    expect(reset.errorMessage).toBeNull();
+
+    const completed = await engine.execute(failed.id);
+    expect(completed.status).toBe("COMPLETED");
+  });
+
+  it("rejects retry when workflow is not failed", async () => {
+    const { engine } = createTestEngine({ random: () => 1 });
+    const workflow = await engine.run({
+      applicationName: "payment-api",
+      environment: "STAGING",
+      version: "1.0.0",
+    });
+
+    await expect(engine.retry(workflow.id)).rejects.toMatchObject({
+      name: "WorkflowNotRetryableError",
+    });
   });
 });

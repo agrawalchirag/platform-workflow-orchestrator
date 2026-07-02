@@ -7,10 +7,15 @@ export {
   STAGE_DURATION_MAX_MS,
   STAGE_DURATION_MIN_MS,
   WORKFLOW_PIPELINE,
+  WorkflowExecutionError,
+  WorkflowNotFoundError,
+  WorkflowNotRetryableError,
   randomStageDurationMs,
+  scheduleWorkflowExecution,
 } from "./workflow";
 
 export type {
+  ListWorkflowsOptions,
   StartWorkflowInput,
   WorkflowEngineDeps,
   WorkflowExecutionResult,

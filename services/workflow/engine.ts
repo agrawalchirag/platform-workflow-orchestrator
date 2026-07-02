@@ -7,7 +7,13 @@ import {
   randomStageDurationMs,
   WORKFLOW_PIPELINE,
 } from "./constants";
+import {
+  WorkflowExecutionError,
+  WorkflowNotFoundError,
+  WorkflowNotRetryableError,
+} from "./errors";
 import { PrismaWorkflowRepository } from "./repository";
+import type { ListWorkflowsOptions } from "./repository";
 import type {
   StartWorkflowInput,
   WorkflowEngineDeps,
@@ -21,17 +27,29 @@ export class WorkflowEngine {
     return this.deps.repository.create(input);
   }
 
+  list(options?: ListWorkflowsOptions): Promise<DeploymentWorkflow[]> {
+    return this.deps.repository.list(options);
+  }
+
+  async getById(workflowId: string): Promise<DeploymentWorkflow> {
+    const workflow = await this.deps.repository.findById(workflowId);
+
+    if (!workflow) {
+      throw new WorkflowNotFoundError(workflowId);
+    }
+
+    return workflow;
+  }
+
   async execute(workflowId: string): Promise<WorkflowExecutionResult> {
     const workflow = await this.deps.repository.findById(workflowId);
 
     if (!workflow) {
-      throw new Error(`Workflow not found: ${workflowId}`);
+      throw new WorkflowNotFoundError(workflowId);
     }
 
     if (workflow.status !== "PENDING") {
-      throw new Error(
-        `Workflow ${workflowId} cannot be executed from status ${workflow.status}`,
-      );
+      throw new WorkflowExecutionError(workflowId, workflow.status);
     }
 
     const startedAt = new Date();
@@ -81,6 +99,20 @@ export class WorkflowEngine {
   async run(input: StartWorkflowInput): Promise<WorkflowExecutionResult> {
     const workflow = await this.start(input);
     return this.execute(workflow.id);
+  }
+
+  async retry(workflowId: string): Promise<DeploymentWorkflow> {
+    const workflow = await this.deps.repository.findById(workflowId);
+
+    if (!workflow) {
+      throw new WorkflowNotFoundError(workflowId);
+    }
+
+    if (workflow.status !== "FAILED") {
+      throw new WorkflowNotRetryableError(workflowId, workflow.status);
+    }
+
+    return this.deps.repository.resetForRetry(workflowId);
   }
 
   private failHealthCheck(
