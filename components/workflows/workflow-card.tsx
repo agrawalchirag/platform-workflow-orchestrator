@@ -8,29 +8,40 @@ import {
   formatStatusLabel,
   formatTimestamp,
   getCurrentStepLabel,
+  isActiveWorkflow,
 } from "@/lib/workflow-display";
 import { EnvironmentBadge, StatusBadge } from "@/components/workflows/status-badge";
 import { ProgressBar } from "@/components/workflows/progress-bar";
 import { WorkflowDeploymentTimeline } from "@/components/workflows/workflow-deployment-timeline";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { useToast } from "@/components/ui/toast-provider";
 
 interface WorkflowCardProps {
   workflow: WorkflowResponse;
   onRetry: (workflow: WorkflowResponse) => void;
+  disableActions?: boolean;
 }
 
-export function WorkflowCard({ workflow, onRetry }: WorkflowCardProps) {
+export function WorkflowCard({
+  workflow,
+  onRetry,
+  disableActions = false,
+}: WorkflowCardProps) {
+  const { showToast } = useToast();
   const [isRetrying, setIsRetrying] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const isRunning = isActiveWorkflow(workflow);
 
   async function handleRetry() {
     setIsRetrying(true);
-    setError(null);
 
     try {
       const updated = await retryWorkflow(workflow.id);
       onRetry(updated);
+      showToast("success", `Retry queued for ${workflow.applicationName}`);
     } catch (retryError) {
-      setError(
+      showToast(
+        "error",
         retryError instanceof Error ? retryError.message : "Failed to retry workflow",
       );
     } finally {
@@ -39,11 +50,15 @@ export function WorkflowCard({ workflow, onRetry }: WorkflowCardProps) {
   }
 
   return (
-    <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article
+      className={`rounded-xl border bg-white p-6 shadow-sm transition-colors ${
+        isRunning ? "border-blue-200 ring-1 ring-blue-100" : "border-slate-200"
+      }`}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900">
               {workflow.applicationName}
             </h3>
             <EnvironmentBadge
@@ -54,22 +69,32 @@ export function WorkflowCard({ workflow, onRetry }: WorkflowCardProps) {
               v{workflow.version}
             </span>
           </div>
-          <p className="text-sm text-slate-500">{getCurrentStepLabel(workflow)}</p>
+          <p className="text-sm leading-6 text-slate-500">
+            {getCurrentStepLabel(workflow)}
+          </p>
         </div>
 
-        <StatusBadge
-          status={workflow.status}
-          label={formatStatusLabel(workflow.status)}
-        />
+        <div className="flex items-center gap-2">
+          {isRunning ? (
+            <span className="inline-flex items-center gap-2 text-xs font-medium text-blue-700">
+              <Spinner size="sm" className="text-blue-600" />
+              In progress
+            </span>
+          ) : null}
+          <StatusBadge
+            status={workflow.status}
+            label={formatStatusLabel(workflow.status)}
+          />
+        </div>
       </div>
 
-      <div className="mt-5 space-y-5">
+      <div className="mt-6 space-y-6">
         <ProgressBar progress={workflow.progress} />
         <WorkflowDeploymentTimeline workflow={workflow} />
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500">
-        <div className="flex flex-wrap gap-4">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">
+        <div className="flex flex-wrap gap-x-5 gap-y-1">
           <span>Created {formatTimestamp(workflow.createdAt)}</span>
           <span>Started {formatTimestamp(workflow.startedAt)}</span>
           {workflow.completedAt ? (
@@ -78,25 +103,23 @@ export function WorkflowCard({ workflow, onRetry }: WorkflowCardProps) {
         </div>
 
         {workflow.status === "FAILED" ? (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            loading={isRetrying}
+            disabled={disableActions || isRetrying}
             onClick={handleRetry}
-            disabled={isRetrying}
-            className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="px-3 py-2 text-xs"
           >
-            {isRetrying ? "Retrying..." : "Retry"}
-          </button>
+            {isRetrying ? "Retrying..." : "Retry deployment"}
+          </Button>
         ) : null}
       </div>
 
       {workflow.errorMessage ? (
-        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
           {workflow.errorMessage}
         </p>
-      ) : null}
-
-      {error ? (
-        <p className="mt-3 text-sm text-red-600">{error}</p>
       ) : null}
     </article>
   );

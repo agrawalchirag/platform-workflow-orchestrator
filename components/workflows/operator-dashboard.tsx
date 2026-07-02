@@ -6,36 +6,59 @@ import { fetchWorkflows } from "@/lib/api/client";
 import { isActiveWorkflow } from "@/lib/workflow-display";
 import { DeploymentForm } from "@/components/workflows/deployment-form";
 import { WorkflowHistory } from "@/components/workflows/workflow-history";
+import { ToastProvider, useToast } from "@/components/ui/toast-provider";
+import { InlineAlert } from "@/components/ui/inline-alert";
 
 const POLL_INTERVAL_MS = 2_000;
 
-export function OperatorDashboard() {
+function DashboardContent() {
+  const { showToast } = useToast();
   const [workflows, setWorkflows] = useState<WorkflowResponse[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
-  const loadWorkflows = useCallback(async (showLoading = false) => {
-    if (showLoading) {
-      setIsLoading(true);
-    }
+  const loadWorkflows = useCallback(
+    async ({ initial = false }: { initial?: boolean } = {}) => {
+      if (initial) {
+        setIsInitialLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
 
-    try {
-      const data = await fetchWorkflows();
-      setWorkflows(data);
-      setError(null);
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Failed to load workflows",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      try {
+        const data = await fetchWorkflows();
+        setWorkflows(data);
+
+        if (initial) {
+          setLoadError(null);
+        } else {
+          setRefreshError(null);
+        }
+      } catch (loadError) {
+        const message =
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load workflows";
+
+        if (initial) {
+          setLoadError(message);
+          showToast("error", message);
+        } else {
+          setRefreshError(message);
+        }
+      } finally {
+        setIsInitialLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [showToast],
+  );
 
   useEffect(() => {
-    void loadWorkflows(true);
+    void loadWorkflows({ initial: true });
   }, [loadWorkflows]);
 
   useEffect(() => {
@@ -70,34 +93,56 @@ export function OperatorDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-          <p className="text-sm font-medium text-blue-600">Operator Console</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <p className="text-sm font-medium tracking-wide text-blue-600 uppercase">
+            Operator Console
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-900">
             Platform Workflow Orchestrator
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-500">
+          <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
             Create deployments, monitor pipeline progress, and review workflow
             history across environments.
           </p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {error ? (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        {loadError ? (
+          <div className="mb-8">
+            <InlineAlert
+              title="Unable to load workflows"
+              message={loadError}
+              onRetry={() => void loadWorkflows({ initial: true })}
+            />
           </div>
         ) : null}
 
-        <div className="grid gap-8 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <DeploymentForm onCreated={handleWorkflowCreated} />
+        <div className="grid gap-10 lg:grid-cols-[380px_minmax(0,1fr)]">
+          <DeploymentForm
+            disabled={isSubmitting}
+            onSubmittingChange={setIsSubmitting}
+            onCreated={handleWorkflowCreated}
+          />
           <WorkflowHistory
             workflows={workflows}
-            isLoading={isLoading}
+            isInitialLoading={isInitialLoading}
+            isRefreshing={isRefreshing}
+            refreshError={refreshError}
+            disableActions={isSubmitting}
             onRetry={handleWorkflowRetried}
+            onRefresh={() => void loadWorkflows()}
           />
         </div>
       </main>
     </div>
+  );
+}
+
+export function OperatorDashboard() {
+  return (
+    <ToastProvider>
+      <DashboardContent />
+    </ToastProvider>
   );
 }

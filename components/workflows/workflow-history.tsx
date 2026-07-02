@@ -2,46 +2,78 @@
 
 import type { WorkflowResponse } from "@/lib/api/serialize-workflow";
 import { WorkflowCard } from "@/components/workflows/workflow-card";
+import { WorkflowCardSkeleton } from "@/components/workflows/workflow-card-skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { InlineAlert } from "@/components/ui/inline-alert";
+import { Spinner } from "@/components/ui/spinner";
 
 interface WorkflowHistoryProps {
   workflows: WorkflowResponse[];
-  isLoading: boolean;
+  isInitialLoading: boolean;
+  isRefreshing: boolean;
+  refreshError: string | null;
+  disableActions?: boolean;
   onRetry: (workflow: WorkflowResponse) => void;
+  onRefresh: () => void;
 }
 
 export function WorkflowHistory({
   workflows,
-  isLoading,
+  isInitialLoading,
+  isRefreshing,
+  refreshError,
+  disableActions = false,
   onRetry,
+  onRefresh,
 }: WorkflowHistoryProps) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-6 flex items-center justify-between gap-3">
+    <section className="rounded-xl border border-slate-200 bg-white p-7 shadow-sm">
+      <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Workflow History</h2>
-          <p className="mt-1 text-sm text-slate-500">
+          <h2 className="text-lg font-semibold tracking-tight text-slate-900">
+            Workflow History
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
             Recent deployments and their current status.
           </p>
         </div>
-        {isLoading ? (
-          <span className="text-xs text-slate-400">Refreshing...</span>
+        {isRefreshing ? (
+          <span className="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+            <Spinner size="sm" />
+            Updating
+          </span>
         ) : null}
       </div>
 
-      {workflows.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-200 px-4 py-10 text-center">
-          <p className="text-sm font-medium text-slate-700">No deployments yet</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Start a deployment to see workflow history here.
-          </p>
+      {refreshError ? (
+        <div className="mb-5">
+          <InlineAlert
+            variant="warning"
+            title="Unable to refresh workflows"
+            message={refreshError}
+            onRetry={onRefresh}
+          />
         </div>
+      ) : null}
+
+      {isInitialLoading ? (
+        <div className="space-y-5">
+          <WorkflowCardSkeleton />
+          <WorkflowCardSkeleton />
+        </div>
+      ) : workflows.length === 0 ? (
+        <EmptyState
+          title="No deployments yet"
+          description="Start your first deployment using the form on the left. Workflow progress and history will appear here."
+        />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {workflows.map((workflow) => (
             <WorkflowCard
               key={workflow.id}
               workflow={workflow}
               onRetry={onRetry}
+              disableActions={disableActions}
             />
           ))}
         </div>
